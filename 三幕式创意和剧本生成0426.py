@@ -27,6 +27,22 @@ st.set_page_config(
     layout="wide"
 )
 
+# ✅ [新增] 心跳保活机制：防止长时间不操作导致 WebSocket 断开和数据丢失
+import streamlit.components.v1 as components
+components.html(
+    """
+    <script>
+    // 每隔 60 秒发送一次静默网络请求，保持服务器与浏览器的连接活跃
+    setInterval(() => {
+        window.parent.postMessage('keep_alive', '*');
+        fetch('/_stcore/health').catch(() => fetch('/healthz')).catch(() => {});
+    }, 60000);
+    </script>
+    """,
+    width=0,
+    height=0,
+)
+
 # CSS 样式：保持黑色字体 (您之前的要求)
 st.markdown("""
 <style>
