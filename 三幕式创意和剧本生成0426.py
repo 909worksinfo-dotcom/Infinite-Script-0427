@@ -27,27 +27,43 @@ st.set_page_config(
     layout="wide"
 )
 
-# ✅ [修复] 终极心跳保活机制 (Web Worker 版)：突破浏览器后台休眠限制，彻底防止假死与断连
+# ✅ [修复] 终极心跳保活 + 睡眠唤醒自愈机制：防止断网/待机假死，保护数据不丢失
 import streamlit.components.v1 as components
+
 components.html(
     """
     <script>
-    // 1. 创建独立于浏览器主线程的 Web Worker 代码
+    // 1. Web Worker 后台保活：防止浏览器切换标签页时休眠，保住服务器端的数据内存
     const workerCode = `
         setInterval(() => {
             postMessage('ping');
-        }, 25000); // 25秒发送一次，完美避开云服务器的 60秒 强杀线
+        }, 25000);
     `;
-    
-    // 2. 将代码转化为 Blob 对象并启动后台独立 Worker
     const blob = new Blob([workerCode], { type: 'application/javascript' });
     const worker = new Worker(URL.createObjectURL(blob));
-    
-    // 3. 接收 Worker 的精准定时信号，触发保活请求 (不受标签页切换影响)
     worker.onmessage = function(e) {
         fetch('/_stcore/health').catch(() => fetch('/healthz')).catch(() => {});
-        window.parent.postMessage('keep_alive', '*');
     };
+
+    // 2. 睡眠/待机唤醒自愈引擎：核心解决电脑休眠后点击无反应的“假死” Bug
+    let lastTime = Date.now();
+    setInterval(() => {
+        const currentTime = Date.now();
+        // 如果两次检测间隔超过 10 秒，说明电脑刚刚经历了睡眠/待机并被唤醒
+        if (currentTime - lastTime > 10000) {
+            try {
+                // 欺骗 Streamlit 前端，模拟一次原生的断线与重连
+                // 这会强制销毁发不出消息的“僵尸 WebSocket”，并重新绑定已有数据，免去按 F5 导致的数据丢失
+                window.parent.dispatchEvent(new Event('offline'));
+                setTimeout(() => {
+                    window.parent.dispatchEvent(new Event('online'));
+                }, 1000);
+            } catch (err) {
+                console.error("Reconnect trigger blocked.");
+            }
+        }
+        lastTime = currentTime;
+    }, 2000);
     </script>
     """,
     width=0,
