@@ -417,7 +417,7 @@ with st.sidebar:
     # 1. 选择提供商
     provider = st.selectbox(
         "选择模型厂商",
-        ["Google Gemini", "OpenAI (GPT)", "Anthropic (Claude)","OpenRouter"]
+        ["OpenRouter","Google Gemini", "OpenAI (GPT)", "Anthropic (Claude)"]
     )
 
     # 2. 动态输入 Key 和 模型名称 (已修改为下拉框)
