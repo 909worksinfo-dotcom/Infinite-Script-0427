@@ -27,16 +27,27 @@ st.set_page_config(
     layout="wide"
 )
 
-# ✅ [新增] 心跳保活机制：防止长时间不操作导致 WebSocket 断开和数据丢失
+# ✅ [修复] 终极心跳保活机制 (Web Worker 版)：突破浏览器后台休眠限制，彻底防止假死与断连
 import streamlit.components.v1 as components
 components.html(
     """
     <script>
-    // 每隔 60 秒发送一次静默网络请求，保持服务器与浏览器的连接活跃
-    setInterval(() => {
-        window.parent.postMessage('keep_alive', '*');
+    // 1. 创建独立于浏览器主线程的 Web Worker 代码
+    const workerCode = `
+        setInterval(() => {
+            postMessage('ping');
+        }, 25000); // 25秒发送一次，完美避开云服务器的 60秒 强杀线
+    `;
+    
+    // 2. 将代码转化为 Blob 对象并启动后台独立 Worker
+    const blob = new Blob([workerCode], { type: 'application/javascript' });
+    const worker = new Worker(URL.createObjectURL(blob));
+    
+    // 3. 接收 Worker 的精准定时信号，触发保活请求 (不受标签页切换影响)
+    worker.onmessage = function(e) {
         fetch('/_stcore/health').catch(() => fetch('/healthz')).catch(() => {});
-    }, 60000);
+        window.parent.postMessage('keep_alive', '*');
+    };
     </script>
     """,
     width=0,
